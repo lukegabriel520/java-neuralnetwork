@@ -1,0 +1,138 @@
+import java.io.*;
+import java.util.*;
+
+public class neuralnetwork {
+    public static void main(String[] args) throws Exception {
+        double[][] X_train;
+        int[] y_train;
+
+        String trainPath = "/kaggle/input/digit-recognizer/train.csv";
+        List<double[]> features = new ArrayList<>();
+        List<Integer> labels = new ArrayList<>();
+
+        try (BufferedReader br = new BufferedReader(new FileReader(trainPath))) {
+            String line = br.readLine();
+            while ((line = br.readLine()) != null) {
+                String[] vals = line.split(",");
+                int label = Integer.parseInt(vals[0]);
+                labels.add(label);
+
+                double[] pixels = new double[784];
+                for (int i = 1; i < vals.length; i++) {
+                    pixels[i - 1] = Integer.parseInt(vals[i]) / 255.0;
+                }
+                features.add(pixels);
+            }
+        }
+
+        X_train = features.toArray(new double[0][]);
+        y_train = labels.stream().mapToInt(i -> i).toArray();
+
+        hidden_layer layer1 = new hidden_layer(784, 128);
+        relu act1 = new relu();
+        hidden_layer layer2 = new hidden_layer(128, 10);
+        softmax act2 = new softmax();
+
+        int epochs = 5;
+
+        for (int epoch = 0; epoch < epochs; epoch++) {
+            layer1.forward(X_train);
+            act1.forward(layer1.output);
+            layer2.forward(act1.output);
+            act2.forward(layer2.output);
+
+            double loss = lossfunction.calculate(act2.output, y_train);
+            double acc = accuracy(act2.output, y_train);
+            System.out.println("Epoch " + (epoch+1) + " | Loss: " + loss + " | Acc: " + acc);
+        }
+    }
+
+    static double accuracy(double[][] predictions, int[] labels) {
+        int correct = 0;
+        for (int i = 0; i < labels.length; i++) {
+            int pred = argMax(predictions[i]);
+            if (pred == labels[i]) correct++;
+        }
+        return (double) correct / labels.length;
+    }
+
+    static int argMax(double[] arr) {
+        int idx = 0;
+        for (int i = 1; i < arr.length; i++) {
+            if (arr[i] > arr[idx]) idx = i;
+        }
+        return idx;
+    }
+}
+
+class hidden_layer {
+    double[][] weights;
+    double[] biases;
+    double[][] output;
+    Random random = new Random();
+
+    hidden_layer(int n_inputs, int n_neurons) {
+        weights = new double[n_inputs][n_neurons];
+        biases = new double[n_neurons];
+        for (int i = 0; i < n_inputs; i++) {
+            for (int j = 0; j < n_neurons; j++) {
+                weights[i][j] = 0.01 * random.nextGaussian();
+            }
+        }
+    }
+
+    void forward(double[][] inputs) {
+        output = new double[inputs.length][biases.length];
+        for (int i = 0; i < inputs.length; i++) {
+            for (int j = 0; j < biases.length; j++) {
+                double sum = biases[j];
+                for (int k = 0; k < inputs[0].length; k++) {
+                    sum += inputs[i][k] * weights[k][j];
+                }
+                output[i][j] = sum;
+            }
+        }
+    }
+}
+
+class relu {
+    double[][] output;
+
+    void forward(double[][] inputs) {
+        output = new double[inputs.length][inputs[0].length];
+        for (int i = 0; i < inputs.length; i++) {
+            for (int j = 0; j < inputs[0].length; j++) {
+                output[i][j] = Math.max(0, inputs[i][j]);
+            }
+        }
+    }
+}
+
+class softmax {
+    double[][] output;
+
+    void forward(double[][] inputs) {
+        output = new double[inputs.length][inputs[0].length];
+        for (int i = 0; i < inputs.length; i++) {
+            double max = Arrays.stream(inputs[i]).max().getAsDouble();
+            double sum = 0.0;
+            for (int j = 0; j < inputs[0].length; j++) {
+                output[i][j] = Math.exp(inputs[i][j] - max);
+                sum += output[i][j];
+            }
+            for (int j = 0; j < inputs[0].length; j++) {
+                output[i][j] /= sum;
+            }
+        }
+    }
+}
+
+class lossfunction {
+    static double calculate(double[][] predictions, int[] y_true) {
+        double loss = 0.0;
+        for (int i = 0; i < predictions.length; i++) {
+            loss += -Math.log(predictions[i][y_true[i]] + 1e-7);
+        }
+        return loss / predictions.length;
+    }
+}
